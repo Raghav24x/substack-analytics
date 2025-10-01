@@ -50,6 +50,17 @@ A comprehensive web scraping and analytics dashboard for Substack publications. 
    ```
    http://localhost:5000
    ```
+   
+## Deployment on Render
+
+To ensure Render uses the correct Python version, add a file named `runtime.txt` to the root of your repository with the following content:
+
+```
+python-3.11.8
+```
+
+This instructs Render to use Python 3.11.8, which is compatible with all dependencies in this project.  
+If you do not specify this file, Render may use the latest Python version (such as 3.13), which can result in build failures.
 
 ## Usage
 
