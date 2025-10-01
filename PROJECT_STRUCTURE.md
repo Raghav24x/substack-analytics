@@ -53,6 +53,7 @@ substack_analytics/
 - lxml 4.9.3
 - selenium 4.15.0
 - webdriver-manager 4.0.1
+- python-3.11.8
 
 ## 📝 Usage
 
@@ -68,3 +69,4 @@ substack_analytics/
 - Web scraping: `enhanced_collector.py`
 - Analytics: `analytics.py`
 - Templates: `templates/index.html`
+
