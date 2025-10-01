@@ -112,7 +112,7 @@ substack_analytics/
 ├── enhanced_collector.py   # Web scraping engine
 ├── analytics.py           # Analytics and metrics calculation
 ├── dashboard.py           # Dashboard routes and API
-├── runtime.txt 
+├── runtime.txt            # Python version to use for render.com
 ├── requirements.txt       # Python dependencies
 ├── templates/
 │   └── index.html        # Main dashboard template
