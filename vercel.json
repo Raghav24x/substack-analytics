@@ -1,4 +1,9 @@
 {
+  "functions": {
+    "api/index.py": {
+      "runtime": "now-python@3.1.0"
+    }
+  },
   "routes": [
     { "src": "/(.*)", "dest": "api/index.py" }
   ]
