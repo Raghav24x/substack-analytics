@@ -6,7 +6,7 @@ Provides comprehensive metrics and insights.
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 import sqlite3
 import json
 from collections import Counter
@@ -108,15 +108,28 @@ class SubstackAnalytics:
         posts_df['published_at'] = pd.to_datetime(posts_df['published_at'])
         posts_df['weekday'] = posts_df['published_at'].dt.day_name()
         posts_df['hour'] = posts_df['published_at'].dt.hour
-        
+
         # Publishing patterns
         weekday_distribution = posts_df['weekday'].value_counts().to_dict()
         hour_distribution = posts_df['hour'].value_counts().to_dict()
-        
+
         # Content analysis
         premium_posts = len(posts_df[posts_df['is_premium'] == 1])
         free_posts = len(posts_df[posts_df['is_premium'] == 0])
-        
+
+        def aggregate_engagement(series: Optional[pd.Series]) -> Tuple[int, float]:
+            if series is None or series.empty:
+                return 0, 0.0
+
+            numeric = pd.to_numeric(series.fillna(0), errors='coerce').fillna(0)
+            total = int(numeric.sum())
+            average = float(numeric.mean()) if len(numeric) else 0.0
+            return total, round(average, 1)
+
+        total_likes, avg_likes = aggregate_engagement(posts_df.get('likes'))
+        total_comments, avg_comments = aggregate_engagement(posts_df.get('comments'))
+        total_shares, avg_shares = aggregate_engagement(posts_df.get('shares'))
+
         # Tag analysis
         all_tags = []
         for tags_json in posts_df['tags']:
@@ -150,6 +163,12 @@ class SubstackAnalytics:
             'premium_posts': premium_posts,
             'free_posts': free_posts,
             'premium_ratio': round(premium_posts / total_posts * 100, 1) if total_posts > 0 else 0,
+            'total_likes': total_likes,
+            'avg_likes': avg_likes,
+            'total_comments': total_comments,
+            'avg_comments': avg_comments,
+            'total_shares': total_shares,
+            'avg_shares': avg_shares,
             'weekday_distribution': weekday_distribution,
             'hour_distribution': hour_distribution,
             'top_tags': top_tags,

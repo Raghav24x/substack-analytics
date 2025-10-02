@@ -133,10 +133,13 @@ def api_posts(publication_name):
             'published_at': post['published_at'],
             'word_count': post['word_count'],
             'read_time': post['read_time'],
+            'likes': int(post['likes']) if not pd.isna(post['likes']) else 0,
+            'comments': int(post['comments']) if not pd.isna(post['comments']) else 0,
+            'shares': int(post['shares']) if not pd.isna(post['shares']) else 0,
             'is_premium': bool(post['is_premium']),
             'tags': json.loads(post['tags']) if post['tags'] else []
         })
-    
+
     return jsonify(posts_data)
 
 @app.route('/api/analytics/<publication_name>')

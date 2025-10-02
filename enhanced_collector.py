@@ -332,24 +332,48 @@ class SubstackDataCollector:
             for tag_elem in tag_elements:
                 tags.append(tag_elem.get_text(strip=True))
             
+codex/extend-post-scraping-for-engagement-metrics
+            codex/extend-post-scraping-for-engagement-metrics
+            # Get full content and engagement metrics if possible
+            content, engagement = self._scrape_post_content(url)
+            word_count = len(content.split()) if content else 0
+            read_time = max(1, word_count // 200)  # Estimate reading time
+
+
+ main
             # Get full content if possible
             content = self._scrape_post_content(url)
             word_count = len(content.split()) if content else 0
             read_time = max(1, word_count // 200)  # Estimate reading time
 
             engagement = self._extract_engagement_metrics(element)
+codex/extend-post-scraping-for-engagement-metrics
+            main
 
+ main
             return PostData(
                 title=title,
                 slug=slug,
                 url=url,
                 content=content,
                 excerpt=excerpt,
+ codex/extend-post-scraping-for-engagement-metrics
+            codex/extend-post-scraping-for-engagement-metrics
                 author=author,
                 published_at=published_at,
                 updated_at=published_at,
                 word_count=word_count,
                 read_time=read_time,
+ main
+                author=author,
+                published_at=published_at,
+                updated_at=published_at,
+                word_count=word_count,
+                read_time=read_time,
+codex/extend-post-scraping-for-engagement-metrics
+             main
+
+ main
                 likes=engagement.get('likes', 0),
                 comments=engagement.get('comments', 0),
                 shares=engagement.get('shares', 0),
@@ -445,12 +469,12 @@ class SubstackDataCollector:
 
         return metrics
     
-    def _scrape_post_content(self, url: str) -> str:
-        """Scrape full content of a post."""
+    def _scrape_post_content(self, url: str) -> Tuple[str, Dict[str, int]]:
+        """Scrape full content of a post along with engagement metrics."""
         try:
             content = self._get_page_content(url)
             soup = BeautifulSoup(content, 'html.parser')
-            
+
             # Find main content area
             content_selectors = [
                 'div.post-content',
@@ -458,17 +482,124 @@ class SubstackDataCollector:
                 'div[data-testid="post-content"]',
                 '.post-body'
             ]
-            
+
+            extracted_content = ""
             for selector in content_selectors:
                 content_elem = soup.select_one(selector)
                 if content_elem:
-                    return content_elem.get_text(strip=True)
-            
-            return ""
-            
+                    extracted_content = content_elem.get_text(strip=True)
+                    break
+
+            if not extracted_content:
+                extracted_content = soup.get_text(strip=True)
+
+            engagement = self._extract_engagement_metrics(soup)
+
+            return extracted_content, engagement
+
         except Exception as e:
             self.logger.error(f"Error scraping post content from {url}: {e}")
-            return ""
+            return "", {'likes': 0, 'comments': 0, 'shares': 0}
+
+    def _extract_engagement_metrics(self, soup: BeautifulSoup) -> Dict[str, int]:
+        """Extract likes, comments, and shares counts from a post page."""
+        counts = {'likes': 0, 'comments': 0, 'shares': 0}
+
+        def parse_numeric(value: Optional[str]) -> Optional[int]:
+            if not value:
+                return None
+
+            text = value.strip().lower()
+            if not text:
+                return None
+
+            # Handle shorthand like 1.2k
+            match = re.search(r'([\d,.]+)\s*([km]?)', text)
+            if not match:
+                return None
+
+            number_text, suffix = match.groups()
+            try:
+                number = float(number_text.replace(',', ''))
+            except ValueError:
+                return None
+
+            multiplier = 1
+            if suffix == 'k':
+                multiplier = 1_000
+            elif suffix == 'm':
+                multiplier = 1_000_000
+
+            return int(number * multiplier)
+
+        def extract_from_element(element) -> Optional[int]:
+            if not element:
+                return None
+
+            # Try common attribute names first
+            for attr in ['data-count', 'data-value', 'data-number', 'aria-label']:
+                if element.has_attr(attr):
+                    parsed = parse_numeric(element.get(attr))
+                    if parsed is not None:
+                        return parsed
+
+            # Fall back to text content
+            return parse_numeric(element.get_text())
+
+        selectors = {
+            'likes': [
+                '[data-testid="like-count"]',
+                '[data-testid="likes-count"]',
+                '[data-testid="heart-count"]',
+                '[aria-label*="like" i]',
+                '.like-count',
+                '.likes-count'
+            ],
+            'comments': [
+                '[data-testid="comment-count"]',
+                '[data-testid="comments-count"]',
+                '[aria-label*="comment" i]',
+                '.comment-count',
+                '.comments-count'
+            ],
+            'shares': [
+                '[data-testid="share-count"]',
+                '[data-testid="shares-count"]',
+                '[aria-label*="share" i]',
+                '.share-count',
+                '.shares-count'
+            ]
+        }
+
+        for metric, metric_selectors in selectors.items():
+            for selector in metric_selectors:
+                element = soup.select_one(selector)
+                value = extract_from_element(element)
+                if value is not None:
+                    counts[metric] = value
+                    break
+
+        # If selectors fail, look for textual patterns
+        patterns = {
+            'likes': re.compile(r'([\d,.]+)\s+(likes|hearts)', re.IGNORECASE),
+            'comments': re.compile(r'([\d,.]+)\s+comments', re.IGNORECASE),
+            'shares': re.compile(r'([\d,.]+)\s+shares', re.IGNORECASE)
+        }
+
+        for metric, pattern in patterns.items():
+            if counts[metric]:
+                continue
+            text_match = soup.find(string=pattern)
+            if not text_match:
+                continue
+            match = pattern.search(text_match)
+            if not match:
+                continue
+            parsed = parse_numeric(match.group(1))
+            if parsed is not None:
+                counts[metric] = parsed
+
+        return counts
     
     def _parse_date(self, date_text: str) -> datetime:
         """Parse date string to datetime object."""
