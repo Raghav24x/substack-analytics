@@ -542,16 +542,36 @@ class SubstackDataCollector:
             filename = f"{self.publication_name}_analytics_{datetime.now().strftime('%Y%m%d')}"
         
         conn = sqlite3.connect(self.db_path)
-        
-        # Export posts
-        posts_df = pd.read_sql_query("SELECT * FROM posts", conn)
-        posts_df.to_csv(f"{filename}_posts.csv", index=False)
-        
-        # Export publication data
-        pub_df = pd.read_sql_query("SELECT * FROM publication", conn)
-        pub_df.to_csv(f"{filename}_publication.csv", index=False)
-        
-        conn.close()
+
+        try:
+            # Export posts filtered by publication URL
+            posts_query = "SELECT * FROM posts WHERE url LIKE ?"
+            posts_params = (f"{self.base_url}/%",)
+            posts_df = pd.read_sql_query(posts_query, conn, params=posts_params)
+            posts_df.to_csv(f"{filename}_posts.csv", index=False)
+
+            # Determine the canonical publication name stored in the database
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM publication WHERE url = ?",
+                (self.base_url,),
+            )
+            row = cursor.fetchone()
+            publication_name = row[0] if row and row[0] else self.publication_name
+
+            # Export publication data filtered to the single publication name
+            pub_query = "SELECT * FROM publication WHERE name = ?"
+            pub_df = pd.read_sql_query(pub_query, conn, params=(publication_name,))
+
+            # Fallback to URL filtering if no row matches the resolved name
+            if pub_df.empty:
+                pub_query = "SELECT * FROM publication WHERE url = ?"
+                pub_df = pd.read_sql_query(pub_query, conn, params=(self.base_url,))
+
+            pub_df.to_csv(f"{filename}_publication.csv", index=False)
+
+        finally:
+            conn.close()
         self.logger.info(f"Data exported to {filename}_*.csv")
     
     def close(self):
