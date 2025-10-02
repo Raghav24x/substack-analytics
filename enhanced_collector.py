@@ -332,6 +332,7 @@ class SubstackDataCollector:
             for tag_elem in tag_elements:
                 tags.append(tag_elem.get_text(strip=True))
             
+codex/extend-post-scraping-for-engagement-metrics
             codex/extend-post-scraping-for-engagement-metrics
             # Get full content and engagement metrics if possible
             content, engagement = self._scrape_post_content(url)
@@ -339,33 +340,40 @@ class SubstackDataCollector:
             read_time = max(1, word_count // 200)  # Estimate reading time
 
 
+ main
             # Get full content if possible
             content = self._scrape_post_content(url)
             word_count = len(content.split()) if content else 0
             read_time = max(1, word_count // 200)  # Estimate reading time
 
             engagement = self._extract_engagement_metrics(element)
-
+codex/extend-post-scraping-for-engagement-metrics
             main
+
+ main
             return PostData(
                 title=title,
                 slug=slug,
                 url=url,
                 content=content,
                 excerpt=excerpt,
+ codex/extend-post-scraping-for-engagement-metrics
             codex/extend-post-scraping-for-engagement-metrics
                 author=author,
                 published_at=published_at,
                 updated_at=published_at,
                 word_count=word_count,
                 read_time=read_time,
-
+ main
                 author=author,
                 published_at=published_at,
                 updated_at=published_at,
                 word_count=word_count,
                 read_time=read_time,
+codex/extend-post-scraping-for-engagement-metrics
              main
+
+ main
                 likes=engagement.get('likes', 0),
                 comments=engagement.get('comments', 0),
                 shares=engagement.get('shares', 0),
@@ -755,6 +763,40 @@ class SubstackDataCollector:
         if not filename:
             filename = f"{self.publication_name}_analytics_{datetime.now().strftime('%Y%m%d')}"
         
+ codex/update-export_to_csv-for-publication-filtering
+        conn = sqlite3.connect(self.db_path)
+
+        try:
+            # Export posts filtered by publication URL
+            posts_query = "SELECT * FROM posts WHERE url LIKE ?"
+            posts_params = (f"{self.base_url}/%",)
+            posts_df = pd.read_sql_query(posts_query, conn, params=posts_params)
+            posts_df.to_csv(f"{filename}_posts.csv", index=False)
+
+            # Determine the canonical publication name stored in the database
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM publication WHERE url = ?",
+                (self.base_url,),
+            )
+            row = cursor.fetchone()
+            publication_name = row[0] if row and row[0] else self.publication_name
+
+            # Export publication data filtered to the single publication name
+            pub_query = "SELECT * FROM publication WHERE name = ?"
+            pub_df = pd.read_sql_query(pub_query, conn, params=(publication_name,))
+
+            # Fallback to URL filtering if no row matches the resolved name
+            if pub_df.empty:
+                pub_query = "SELECT * FROM publication WHERE url = ?"
+                pub_df = pd.read_sql_query(pub_query, conn, params=(self.base_url,))
+
+            pub_df.to_csv(f"{filename}_publication.csv", index=False)
+
+        finally:
+            conn.close()
+        self.logger.info(f"Data exported to {filename}_*.csv")
+
         conn = sqlite3.connect(self.db_path)
         
         # Export posts
@@ -775,6 +817,7 @@ class SubstackDataCollector:
         
         conn.close()
         self.logger.info(f"Data exported to {filename}_*.csv")
+ main
     
     def close(self):
         """Close resources."""
