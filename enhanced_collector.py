@@ -336,7 +336,9 @@ class SubstackDataCollector:
             content = self._scrape_post_content(url)
             word_count = len(content.split()) if content else 0
             read_time = max(1, word_count // 200)  # Estimate reading time
-            
+
+            engagement = self._extract_engagement_metrics(element)
+
             return PostData(
                 title=title,
                 slug=slug,
@@ -348,9 +350,9 @@ class SubstackDataCollector:
                 updated_at=published_at,
                 word_count=word_count,
                 read_time=read_time,
-                likes=0,
-                comments=0,
-                shares=0,
+                likes=engagement.get('likes', 0),
+                comments=engagement.get('comments', 0),
+                shares=engagement.get('shares', 0),
                 tags=tags,
                 is_premium=is_premium,
                 subscriber_only=subscriber_only
@@ -359,6 +361,89 @@ class SubstackDataCollector:
         except Exception as e:
             self.logger.error(f"Error extracting post data: {e}")
             return None
+
+    def _extract_engagement_metrics(self, element) -> Dict[str, int]:
+        """Extract engagement metrics (likes, comments, shares) from an element."""
+
+        def parse_numeric(value: str) -> int:
+            """Parse abbreviated numeric strings like '1.2K' into integers."""
+            if not value:
+                return 0
+
+            cleaned = value.strip().lower().replace(',', '')
+            multiplier = 1
+
+            if cleaned.endswith('k'):
+                multiplier = 1_000
+                cleaned = cleaned[:-1]
+            elif cleaned.endswith('m'):
+                multiplier = 1_000_000
+                cleaned = cleaned[:-1]
+
+            try:
+                return int(float(cleaned) * multiplier)
+            except ValueError:
+                return 0
+
+        metrics = {
+            'likes': 0,
+            'comments': 0,
+            'shares': 0
+        }
+
+        if not element:
+            return metrics
+
+        structured_selectors = {
+            'likes': [
+                '[data-testid="like-count"]',
+                '.likes-count',
+                '.like-count',
+                'span[class*="like-count"]'
+            ],
+            'comments': [
+                '[data-testid="comment-count"]',
+                '.comments-count',
+                '.comment-count',
+                'span[class*="comment-count"]'
+            ],
+            'shares': [
+                '[data-testid="share-count"]',
+                '.shares-count',
+                '.share-count',
+                'span[class*="share-count"]'
+            ]
+        }
+
+        for metric, selectors in structured_selectors.items():
+            for selector in selectors:
+                metric_elem = element.select_one(selector)
+                if metric_elem:
+                    value = parse_numeric(metric_elem.get_text(strip=True))
+                    if value:
+                        metrics[metric] = value
+                        break
+            if metrics[metric]:
+                continue
+
+        text_content = element.get_text(" ", strip=True)
+
+        if text_content:
+            patterns = {
+                'likes': re.compile(r'(?P<value>[\d,.]+)\s+(?:like|likes|heart|hearts)\b', re.IGNORECASE),
+                'comments': re.compile(r'(?P<value>[\d,.]+)\s+(?:comment|comments)\b', re.IGNORECASE),
+                'shares': re.compile(r'(?P<value>[\d,.]+)\s+(?:share|shares)\b', re.IGNORECASE)
+            }
+
+            for metric, pattern in patterns.items():
+                if metrics[metric]:
+                    continue
+
+                match = pattern.search(text_content)
+                if match:
+                    metrics[metric] = parse_numeric(match.group('value'))
+
+        return metrics
     
     def _scrape_post_content(self, url: str) -> str:
         """Scrape full content of a post."""
