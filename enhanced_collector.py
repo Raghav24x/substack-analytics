@@ -473,13 +473,18 @@ class SubstackDataCollector:
         start_date = datetime.now() - timedelta(days=days_back)
         
         query = '''
-            SELECT * FROM posts 
-            WHERE published_at >= ? 
+            SELECT * FROM posts
+            WHERE published_at >= ?
+              AND url LIKE ?
             ORDER BY published_at DESC
         '''
-        
-        posts_df = pd.read_sql_query(query, conn, params=(start_date,))
-        
+
+        posts_df = pd.read_sql_query(
+            query,
+            conn,
+            params=(start_date, f"{self.base_url}%"),
+        )
+
         # Calculate analytics
         analytics = {
             'publication_name': self.publication_name,
@@ -502,6 +507,7 @@ class SubstackDataCollector:
         if posts_df.empty:
             return {}
         
+        posts_df = posts_df.copy()
         posts_df['month'] = pd.to_datetime(posts_df['published_at']).dt.to_period('M')
         return posts_df['month'].value_counts().to_dict()
     
@@ -544,11 +550,19 @@ class SubstackDataCollector:
         conn = sqlite3.connect(self.db_path)
         
         # Export posts
-        posts_df = pd.read_sql_query("SELECT * FROM posts", conn)
+        posts_df = pd.read_sql_query(
+            "SELECT * FROM posts WHERE url LIKE ?",
+            conn,
+            params=(f"{self.base_url}%",),
+        )
         posts_df.to_csv(f"{filename}_posts.csv", index=False)
-        
+
         # Export publication data
-        pub_df = pd.read_sql_query("SELECT * FROM publication", conn)
+        pub_df = pd.read_sql_query(
+            "SELECT * FROM publication WHERE url LIKE ? OR name = ?",
+            conn,
+            params=(f"{self.base_url}%", self.publication_name),
+        )
         pub_df.to_csv(f"{filename}_publication.csv", index=False)
         
         conn.close()
