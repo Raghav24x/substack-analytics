@@ -28,6 +28,20 @@ class SubstackAnalyticsApp:
         collector = SubstackDataCollector(publication_name, self.db_path)
         self.collectors[publication_name] = collector
         return collector
+
+    def get_collector(self, publication_name):
+        """Get an existing collector or create one if data exists."""
+        collector = self.collectors.get(publication_name)
+        if collector:
+            return collector
+
+        publication_data = self.get_publication_data(publication_name)
+        if not publication_data:
+            return None
+
+        collector = SubstackDataCollector(publication_name, self.db_path)
+        self.collectors[publication_name] = collector
+        return collector
     
     def get_publications(self):
         """Get list of tracked publications."""
@@ -173,11 +187,13 @@ def api_export(publication_name):
 def api_export_csv(publication_name):
     """Export data as CSV."""
     try:
-        if publication_name in analytics_app.collectors:
-            filename = f"{publication_name}_analytics_{datetime.now().strftime('%Y%m%d')}"
-            analytics_app.collectors[publication_name].export_to_csv(filename)
-            return send_file(f"{filename}_posts.csv", as_attachment=True)
-        return jsonify({'error': 'Publication not found'}), 404
+        collector = analytics_app.get_collector(publication_name)
+        if not collector:
+            return jsonify({'error': 'Publication not found'}), 404
+
+        filename = f"{publication_name}_analytics_{datetime.now().strftime('%Y%m%d')}"
+        collector.export_to_csv(filename)
+        return send_file(f"{filename}_posts.csv", as_attachment=True)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
